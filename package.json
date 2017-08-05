@@ -1,0 +1,14 @@
+{
+    "name": "homebridge-bluetooth-puck-button",
+    "version": "0.0.1",
+    "main": "index.js",
+    "keywords": [
+	"homebridge-plugin"
+    ],
+    "engines": {
+	"homebridge": ">=0.2.0"
+    },
+    "dependencies": {
+	"noble": "^1.6.0"
+    }
+}
