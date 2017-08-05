@@ -101,7 +101,7 @@ PuckButtonAccessory.prototype.onDiscoverPeripheral = function(peripheral) {
 
     var [countObj, batteryObj] = [PressCountUUID, "180f"]
 	.map(function(uuid) {
-	    peripheral.advertisement.serviceData
+	    return peripheral.advertisement.serviceData
 		.find(function(o) { return o.uuid === uuid });
 	});
 
