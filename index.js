@@ -8,7 +8,7 @@ module.exports = function(homebridge) {
 };
 
 const EventEmitter = require('events');
-const PressCountUUID = "a8f9ffe0-41cb-45f4-a04c-0682d6805e35";
+const PressCountUUID = "ffe0";
 
 function PuckButtonAccessory(log, config) {
     this.log = log;

@@ -8,8 +8,6 @@
  * previously seen count and then triggers an event.
  */
 
-const PressCountUUID = "a8f9ffe0-41cb-45f4-a04c-0682d6805e35";
-
 function Button() {
   this.pressCount = 0;
   this.advertisingParams = {
@@ -23,7 +21,7 @@ function Button() {
 Button.prototype.advertise = function() {
   NRF.setAdvertising({
     0x180f: [Puck.getBatteryPercentage()],
-    PressCountUUID: [this.pressCount]
+    0xffe0: [this.pressCount]
   }, this.advertisingParams);
 };
 
