@@ -8,6 +8,7 @@ module.exports = function(homebridge) {
 };
 
 const EventEmitter = require('events');
+const PressCountUUID = "a8f9ffe0-41cb-45f4-a04c-0682d6805e35";
 
 function PuckButtonAccessory(log, config) {
     this.log = log;
@@ -27,13 +28,14 @@ function PuckButtonAccessory(log, config) {
     this.emitter = new EventEmitter();
     this.emitter.on('pressed', this.toggleButtonState.bind(this));
     this.emitter.on('initial-sighting', this.sighted.bind(this));
-    this.emitter.on('battery-level-changed', this.updateBatteryLevel.bind(this));
+    this.emitter.on('battery-level-changed',
+		    this.updateBatteryLevel.bind(this));
 
     /*
      * this.switchService = new Service.StatefulProgrammableSwitch();
      * Really what I want is the above, but it isn't working with Home
      * right now, so use a stateless button to simulate a stateful one.
-     * the state is stored in this class, and different press events are
+     * the state is stored in this object, and different press events are
      * sent one for on and one for off depending on the current state.
      * This can get out of sync but only for one press, so it isn't a big deal.
      * Other commented code reflects changes needed to make this stateful in
@@ -41,14 +43,17 @@ function PuckButtonAccessory(log, config) {
      */
     this.switchService = new Service.StatelessProgrammableSwitch();
     this.batteryService = new Service.BatteryService();
+    this.infoService = new Service.AccessoryInformation()
+	.setCharacteristic(Characteristic.Manufacturer, "Espruino")
+	.setCharacteristic(Characteristic.Model, "Puck.js")
+	.setCharacteristic(Characteristic.SerialNumber, this.address);
+
     this.services = [
 	this.switchService,
 	this.batteryService,
-	new Service.AccessoryInformation()
-	    .setCharacteristic(Characteristic.Manufacturer, "Espruino")
-	    .setCharacteristic(Characteristic.Model, "Puck.js")
-	    .setCharacteristic(Characteristic.SerialNumber, this.address)
+	this.infoService
     ];
+
     this.eventCharacteristic = this.switchService.getCharacteristic(
 	Characteristic.ProgrammableSwitchEvent);
     this.batteryLevelChar = this.batteryService.getCharacteristic(
@@ -83,21 +88,22 @@ PuckButtonAccessory.prototype.onStateChange = function(state) {
 
 PuckButtonAccessory.prototype.startScanning = function() {
     this.log('starting scan');
-    this.noble.startScanning(['1801'], true);
+    this.noble.startScanning([PressCountUUID], true);
 };
 
 PuckButtonAccessory.prototype.onDiscoverPeripheral = function(peripheral) {
-    var address = (peripheral.address === 'unknown') ? peripheral.id : peripheral.address;
+    var address = (peripheral.address === 'unknown')
+	? peripheral.id : peripheral.address;
 
     if (address !== this.address) {
 	return;
     }
 
-    var countObj = peripheral.advertisement.serviceData
-	.find(function(o) { return o.uuid === "1801" });
-	
-    var batteryObj = peripheral.advertisement.serviceData
-	.find(function(o) { return o.uuid === "180f" });
+    var [countObj, batteryObj] = [PressCountUUID, "180f"]
+	.map(function(uuid) {
+	    peripheral.advertisement.serviceData
+		.find(function(o) { return o.uuid === uuid });
+	});
 
     if (typeof countObj === 'undefined'  || typeof batteryObj === 'undefined') {
 	this.log("got invalid advertisement for: " + address + " got "
@@ -132,11 +138,18 @@ PuckButtonAccessory.prototype.sighted = function(state) {
 PuckButtonAccessory.prototype.toggleButtonState = function(count) {
     this.state = (this.state === "off") ? "on" : "off";
     this.count = count;
-    this.eventCharacteristic.updateValue(this.stateToCharacteristicState(this.state));
-    //this.outputCharacteristic.updateValue(this.stateToCharacteristicState(this.state));
+    this.eventCharacteristic.updateValue(
+	this.stateToCharacteristicState(this.state));
+    //this.eventCharacteristic.updateValue(0);
+    //this.outputCharacteristic.updateValue(
+    //    this.stateToCharacteristicState(this.state));
     this.log(this.prefix + ' toggled; state is now ' + this.state);
     this.log(this.prefix + ' count is  ' + this.count);
 };
+
+/*PuckButtonAccessory.prototype.getButtonState = function(callback) {
+    callback(null, this.stateToCharacteristicState(this.state));
+};*/
 
 PuckButtonAccessory.prototype.updateBatteryLevel = function(battery) {
     this.battery = battery;
@@ -144,15 +157,11 @@ PuckButtonAccessory.prototype.updateBatteryLevel = function(battery) {
     this.log(this.prefix + ' battery level changed to ' + this.battery);
 };
 
+PuckButtonAccessory.prototype.getBatteryLevel = function(callback) {
+    callback(null, this.battery);
+};
+
 PuckButtonAccessory.prototype.identify = function(callback) {
     this.log(this.prefix, "Identify");
     callback();
-};
-
-/*PuckButtonAccessory.prototype.getButtonState = function(callback) {
-    callback(null, this.stateToCharacteristicState(this.state));
-};*/
-
-PuckButtonAccessory.prototype.getBatteryLevel = function(callback) {
-    callback(null, this.battery);
 };

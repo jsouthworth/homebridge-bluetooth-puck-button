@@ -1,24 +1,36 @@
+/*
+ * This code turns a puck.js into a simple counting button.  It is
+ * optimized for battery life. Since puck.js does better in this
+ * regard when it is advertising at a reasonable rate and watching the
+ * button as opposed to being connected, the count is used to relay
+ * the fact the button has been pressed. The code that is part of the
+ * homebridge plugin watches for the count to be different than the
+ * previously seen count and then triggers an event.
+ */
+
+const PressCountUUID = "a8f9ffe0-41cb-45f4-a04c-0682d6805e35";
+
 function Button() {
-  var button = {
-    pressCount: 0,
-    advertisingParams: {
-      name: "Button",
-      connectable: false
-    },
-    advertise: function() {
-      NRF.setAdvertising({
-        0x180f: [Puck.getBatteryPercentage()],
-        0x1801: [button.pressCount]
-      }, button.advertisingParams);
-    },
-    pressed: function() {
-      button.pressCount += 1;
-      button.advertise();
-    }
+  this.pressCount = 0;
+  this.advertisingParams = {
+    name: "Button" + NRF.getAddress().slice(-5),
+    connectable: false,
+    uart: false
   };
-  button.advertise();
-  return button;
+  this.advertise();
 }
+
+Button.prototype.advertise = function() {
+  NRF.setAdvertising({
+    0x180f: [Puck.getBatteryPercentage()],
+    PressCountUUID: [this.pressCount]
+  }, this.advertisingParams);
+};
+
+Button.prototype.pressed = function() {
+  this.pressCount += 1;
+  this.advertise();
+};
 
 var button = new Button();
 setWatch(function() {
