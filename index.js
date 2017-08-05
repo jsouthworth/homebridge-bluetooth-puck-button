@@ -26,7 +26,7 @@ function PuckButtonAccessory(log, config) {
     this.prefix = "(" + this.address + ")" + " | ";
     
     this.emitter = new EventEmitter();
-    this.emitter.on('pressed', this.toggleButtonState.bind(this));
+    this.emitter.on('pressed', this.toggleSwitchState.bind(this));
     this.emitter.on('initial-sighting', this.sighted.bind(this));
     this.emitter.on('battery-level-changed',
 		    this.updateBatteryLevel.bind(this));
@@ -34,33 +34,35 @@ function PuckButtonAccessory(log, config) {
     /*
      * this.switchService = new Service.StatefulProgrammableSwitch();
      * Really what I want is the above, but it isn't working with Home
-     * right now, so use a stateless button to simulate a stateful one.
-     * the state is stored in this object, and different press events are
-     * sent one for on and one for off depending on the current state.
-     * This can get out of sync but only for one press, so it isn't a big deal.
-     * Other commented code reflects changes needed to make this stateful in
-     * the future.
+     * right now, so use a stateless button to simulate a stateful
+     * one.  The state is stored in this object, and different press
+     * events are sent one for on and one for off depending on the
+     * current state.  An additional switch service is provided to
+     * allow for Home to synchronize the switch state with
+     * scenes. This in effect closes the loop and emulates a stateful
+     * switch using two split services.
      */
-    this.switchService = new Service.StatelessProgrammableSwitch();
-    this.batteryService = new Service.BatteryService();
-    this.infoService = new Service.AccessoryInformation()
-	.setCharacteristic(Characteristic.Manufacturer, "Espruino")
-	.setCharacteristic(Characteristic.Model, "Puck.js")
-	.setCharacteristic(Characteristic.SerialNumber, this.address);
+    this.services = {
+	button: new Service.StatelessProgrammableSwitch(),
+	battery: new Service.BatteryService(),
+	info: new Service.AccessoryInformation()
+	    .setCharacteristic(Characteristic.Manufacturer, "Espruino")
+	    .setCharacteristic(Characteristic.Model, "Puck.js")
+	    .setCharacteristic(Characteristic.SerialNumber, this.address),
+	state: new Service.Switch()
+    };
 
-    this.services = [
-	this.switchService,
-	this.batteryService,
-	this.infoService
-    ];
-
-    this.eventCharacteristic = this.switchService.getCharacteristic(
-	Characteristic.ProgrammableSwitchEvent);
-    this.batteryLevelChar = this.batteryService.getCharacteristic(
-	Characteristic.BatteryLevel);
-    this.batteryLevelChar.on('get', this.getBatteryLevel.bind(this));
-    //this.outputCharacteristic = this.switchService.getCharacteristic(
-    //Characteristic.ProgrammableSwitchOutputState);
+    this.characteristics = {
+	buttonEvent: this.services.button.getCharacteristic(
+	    Characteristic.ProgrammableSwitchEvent),
+	batteryLevel: this.services.battery.getCharacteristic(
+	    Characteristic.BatteryLevel),
+	state: this.services.state.getCharacteristic(Characteristic.On)
+    };
+    this.characteristics.batteryLevel
+	.on('get', this.getBatteryLevel.bind(this));
+    this.characteristics.state.on('get', this.getSwitchState.bind(this));
+    this.characteristics.state.on('set', this.setSwitchState.bind(this));
 
     this.noble = require('noble');
     this.noble.on('stateChange', this.onStateChange.bind(this));
@@ -72,12 +74,24 @@ function PuckButtonAccessory(log, config) {
     this.state = "off";
 }
 
-PuckButtonAccessory.prototype.stateToCharacteristicState = function(state) {
-    return (state === "off") ? 0 : 1;
+PuckButtonAccessory.prototype.eventState = function() {
+    return (this.state === "off") ? 0 : 1;
+};
+
+PuckButtonAccessory.prototype.switchState = function() {
+    return (this.state === "off") ? false : true;
+};
+
+PuckButtonAccessory.prototype.convertState = function(value) {
+    return value ? "on" : "off";
 };
 
 PuckButtonAccessory.prototype.getServices = function() {
-    return this.services;
+    var services = this.services;
+    return Object.keys(services)
+	.map(function(key) {
+	    return services[key];
+	});
 };
 
 PuckButtonAccessory.prototype.onStateChange = function(state) {
@@ -135,21 +149,30 @@ PuckButtonAccessory.prototype.sighted = function(state) {
     this.log(this.prefix + ' sighted');
 };
 
-PuckButtonAccessory.prototype.toggleButtonState = function(count) {
-    this.state = (this.state === "off") ? "on" : "off";
+PuckButtonAccessory.prototype.toggleSwitchState = function(count) {
     this.count = count;
-    this.eventCharacteristic.updateValue(
-	this.stateToCharacteristicState(this.state));
-    //this.eventCharacteristic.updateValue(0);
-    //this.outputCharacteristic.updateValue(
-    //    this.stateToCharacteristicState(this.state));
-    this.log(this.prefix + ' toggled; state is now ' + this.state);
+    this.updateSwitchState((this.state === "off") ? "on" : "off");
     this.log(this.prefix + ' count is  ' + this.count);
 };
 
-/*PuckButtonAccessory.prototype.getButtonState = function(callback) {
-    callback(null, this.stateToCharacteristicState(this.state));
-};*/
+PuckButtonAccessory.prototype.updateSwitchState = function(state) {
+    this.state = state;
+    this.characteristics.buttonEvent.updateValue(this.eventState());
+    this.characteristics.state.updateValue(this.switchState());
+    this.log(this.prefix, "set state to: " + this.state);
+};
+
+PuckButtonAccessory.prototype.getSwitchState = function(callback) {
+    callback(null, this.switchState());
+};
+
+PuckButtonAccessory.prototype.setSwitchState = function(newValue, callback) {
+    var newState = this.convertState(newValue);
+    if (newState !== this.state) {
+        this.updateSwitchState(this.convertState(newValue));
+    }
+    callback();
+};
 
 PuckButtonAccessory.prototype.updateBatteryLevel = function(battery) {
     this.battery = battery;
