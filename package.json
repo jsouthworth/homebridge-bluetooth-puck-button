@@ -9,6 +9,7 @@
 	"homebridge": ">=0.2.0"
     },
     "dependencies": {
+	"mkdirp": "^0.5.1",
 	"noble": "^1.6.0"
     }
 }

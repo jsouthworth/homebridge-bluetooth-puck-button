@@ -8,6 +8,9 @@ module.exports = function(homebridge) {
 };
 
 const EventEmitter = require('events');
+const FS = require('fs');
+const mkdirp = require('mkdirp');
+const path = require('path');
 const PressCountUUID = "ffe0";
 
 function PuckButtonAccessory(log, config) {
@@ -20,9 +23,10 @@ function PuckButtonAccessory(log, config) {
     if (!config.address) {
 	throw new Error(" Missing mandatory config 'address'");
     }
-    
+
     this.address = config.address;
     this.name = config.name;
+    this.statePath = config.statePath;
     this.prefix = "(" + this.address + ")" + " | ";
     
     this.emitter = new EventEmitter();
@@ -71,8 +75,31 @@ function PuckButtonAccessory(log, config) {
     this.count = 0;
     this.battery = 0;
     this.seen = false;
-    this.state = "off";
+    this.state = this.getCachedState();
 }
+
+PuckButtonAccessory.prototype.getCachedState = function() {
+    const defaultState = "off";
+    if (!this.statePath) {
+	return defaultState;
+    }
+    var stateObj;
+    try {
+	stateObj = JSON.parse(FS.readFileSync(this.statePath));
+    } catch (err) {
+	return defaultState;
+    }
+    return stateObj.state;
+};
+
+PuckButtonAccessory.prototype.cacheState = function() {
+    if (!this.statePath) {
+	return;
+    }
+    mkdirp.sync(path.dirname(this.statePath));
+    FS.writeFileSync(this.statePath,
+		     JSON.stringify({state:this.state}), "utf8");
+};
 
 PuckButtonAccessory.prototype.eventState = function() {
     return (this.state === "off") ? 0 : 1;
@@ -159,6 +186,7 @@ PuckButtonAccessory.prototype.updateSwitchState = function(state) {
     this.state = state;
     this.characteristics.buttonEvent.updateValue(this.eventState());
     this.characteristics.state.updateValue(this.switchState());
+    this.cacheState();
     this.log(this.prefix, "set state to: " + this.state);
 };
 
