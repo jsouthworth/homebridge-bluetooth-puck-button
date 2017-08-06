@@ -11,6 +11,10 @@
 	"bluetooth low energy",
 	"puck.js"
     ],
+    "repository": {
+	"type": "git",
+	"url": "git://github.com/jsouthworth/homebridge-bluetooth-puck-button.git"
+    },
     "engines": {
 	"homebridge": ">=0.2.0"
     },
