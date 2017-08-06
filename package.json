@@ -1,9 +1,15 @@
 {
     "name": "homebridge-bluetooth-puck-button",
+    "description": "Homebridge plugin that uses a puck.js to control a stateful switch",
+    "author": "John Southworth",
     "version": "0.0.1",
+    "license": "MIT",
     "main": "index.js",
     "keywords": [
-	"homebridge-plugin"
+	"homebridge-plugin",
+	"bluetooth",
+	"bluetooth low energy",
+	"puck.js"
     ],
     "engines": {
 	"homebridge": ">=0.2.0"
